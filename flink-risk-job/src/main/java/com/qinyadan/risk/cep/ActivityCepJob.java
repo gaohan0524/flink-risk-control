@@ -19,11 +19,20 @@ import java.util.*;
 public class ActivityCepJob {
     private static final Logger logger = LoggerFactory.getLogger(ActivityCepJob.class);
 
+    /**
+     * 活动风控 CEP 处理入口
+     * 对已按 userId 分组的活动事件流执行两种模式匹配（频繁参与活动、重复领取优惠券），
+     * 输出 PatternMatchResult 中间结果供下游规则引擎评估
+     *
+     * @param input 按 userId 分组的活动事件流
+     * @return 两种模式命中结果的并集（union 后的流）
+     */
     public static DataStream<PatternMatchResult> process(KeyedStream<ActivityEvent, String> input) {
 
         // 模式1: 频繁参与活动
         Pattern<ActivityEvent, ?> frequentPattern = PatternFactory.createActivityFrequentPattern();
         DataStream<PatternMatchResult> frequentRisks = CEP.pattern(input, frequentPattern)
+                // 命中"频繁参与活动"模式后的回调：聚合事件 -> 构建上下文与详情 -> 产出中间结果
                 .select(new PatternSelectFunction<ActivityEvent, PatternMatchResult>() {
                     @Override
                     public PatternMatchResult select(Map<String, List<ActivityEvent>> pattern) {
@@ -61,6 +70,7 @@ public class ActivityCepJob {
         // 模式2: 重复领取优惠券
         Pattern<ActivityEvent, ?> couponPattern = PatternFactory.createCouponRepeatPattern();
         DataStream<PatternMatchResult> couponRisks = CEP.pattern(input, couponPattern)
+                // 命中"重复领取优惠券"模式后的回调：聚合事件 -> 构建上下文与详情 -> 产出中间结果
                 .select(new PatternSelectFunction<ActivityEvent, PatternMatchResult>() {
                     @Override
                     public PatternMatchResult select(Map<String, List<ActivityEvent>> pattern) {
@@ -96,9 +106,19 @@ public class ActivityCepJob {
                     }
                 });
 
+        // 将两种模式的命中结果流合并为一个流（union 要求两个流元素类型一致）
         return frequentRisks.union(couponRisks);
     }
 
+    /**
+     * 构建活动事件的规则评估上下文
+     * 将命中事件的最新字段（activityId/actionType/channel/source 等）写入 Map，
+     * 供下游 Aviator 规则表达式引用
+     *
+     * @param events      命中的活动事件列表
+     * @param patternType 命中的模式类型
+     * @return 规则评估上下文 Map
+     */
     private static Map<String, Object> buildActivityContext(List<ActivityEvent> events, String patternType) {
         Map<String, Object> context = new HashMap<>();
         if (events != null && !events.isEmpty()) {

@@ -16,13 +16,14 @@ import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsIni
  */
 public class KafkaSourceFactory {
 
-    private static final String LOGIN_TOPIC = "login-events";
-    private static final String ORDER_TOPIC = "order-events";
-    private static final String ACTIVITY_TOPIC = "activity-events";
-    private static final String GROUP_ID = "flink-risk-control-group";
+    private static final String LOGIN_TOPIC = "login-events";        // 登录事件 topic
+    private static final String ORDER_TOPIC = "order-events";        // 订单事件 topic
+    private static final String ACTIVITY_TOPIC = "activity-events";  // 活动事件 topic
+    private static final String GROUP_ID = "flink-risk-control-group";  // 消费者组 ID
 
     /**
      * 创建登录事件 KafkaSource
+     * 从 login-events topic 消费，使用 LoginEventDeserializer 反序列化，从最早 offset 开始
      */
     public static KafkaSource<LoginEvent> createLoginSource(String bootstrapServers) {
         return KafkaSource.<LoginEvent>builder()
@@ -36,6 +37,7 @@ public class KafkaSourceFactory {
 
     /**
      * 创建订单事件 KafkaSource
+     * 从 order-events topic 消费，使用 OrderEventDeserializer 反序列化，从最早 offset 开始
      */
     public static KafkaSource<OrderEvent> createOrderSource(String bootstrapServers) {
         return KafkaSource.<OrderEvent>builder()
@@ -49,6 +51,7 @@ public class KafkaSourceFactory {
 
     /**
      * 创建活动事件 KafkaSource
+     * 从 activity-events topic 消费，使用 ActivityEventDeserializer 反序列化，从最早 offset 开始
      */
     public static KafkaSource<ActivityEvent> createActivitySource(String bootstrapServers) {
         return KafkaSource.<ActivityEvent>builder()
@@ -63,6 +66,8 @@ public class KafkaSourceFactory {
     /**
      * 创建所有事件类型的统一 KafkaSource（单 Topic 多事件类型）
      * 返回 DataStream<Event> 基类
+     *
+     * 中文说明：同时订阅三个 topic，使用 KafkaEventDeserializer 按 eventType 动态反序列化到对应子类
      */
     public static KafkaSource<Event> createUnifiedSource(String bootstrapServers) {
         return KafkaSource.<Event>builder()

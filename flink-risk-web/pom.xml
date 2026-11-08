@@ -74,26 +74,20 @@
         </dependency>
 
         <!-- MyBatis Plus -->
+        <!-- MyBatis Plus SpringBoot3 Starter -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>${mybatis.plus.version}</version>
             <exclusions>
-                <!-- 排除 MyBatis Plus 自带的 Spring Boot 2.x 依赖，由 web 模块统一管理 -->
+                <!-- 只排除logback，不要排除autoconfigure、jdbc！ -->
                 <exclusion>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-starter-logging</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-autoconfigure</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-jdbc</artifactId>
-                </exclusion>
             </exclusions>
         </dependency>
+
 
         <!-- Spring Boot JDBC (Jakarta EE 兼容版) -->
         <dependency>
@@ -103,11 +97,11 @@
         </dependency>
 
         <!-- MyBatis Spring (Jakarta EE 兼容版) -->
-        <dependency>
-            <groupId>org.mybatis</groupId>
-            <artifactId>mybatis-spring</artifactId>
-            <version>3.0.3</version>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.mybatis</groupId>-->
+<!--            <artifactId>mybatis-spring</artifactId>-->
+<!--            <version>3.0.3</version>-->
+<!--        </dependency>-->
 
         <!-- MySQL Driver -->
         <dependency>

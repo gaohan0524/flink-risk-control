@@ -46,6 +46,14 @@ import java.util.concurrent.TimeUnit;
  *      - Kafka：异步发送到 risk-results topic（供下游系统消费）
  */
 public class RiskControlApplication {
+    /**
+     * 程序入口：编排并执行完整的风控 DAG
+     *
+     * 依次完成：解析参数 -> 创建执行环境 -> 构建规则广播流 -> 构建三路 Kafka 事件源
+     * -> CEP 模式匹配 -> 广播规则评估 -> 三路输出（Redis/MySQL/Kafka）
+     *
+     * @param args 命令行参数（--kafka.bootstrap.servers / --mysql.url / --redis.host 等）
+     */
     public static void main(String[] args) throws Exception {
         // ========== 1. 读取配置 ==========
         String kafkaBootstrapServers = getArg(args, "--kafka.bootstrap.servers", "localhost:9092");
@@ -59,7 +67,9 @@ public class RiskControlApplication {
 
         // ========== 2. 创建 Flink 执行环境 ==========
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        // 全局默认并行度设为 4（各算子未单独指定时沿用此值）
         env.setParallelism(4);
+        // 开启 Checkpoint：每 60s 做一次状态快照，用于故障恢复与 Exactly-Once 保证
         env.enableCheckpointing(60000);
 
         System.out.println("Flink Risk Control Job Started. Flink version: 2.2.1");
@@ -74,6 +84,7 @@ public class RiskControlApplication {
                 .setParallelism(1)
                 .name("mysql-rule-source");
 
+        // 将规则流广播到所有下游并行实例，形成 Broadcast State（规则热更新的载体）
         BroadcastStream<List<RuleConfig>> ruleBroadcastStream = ruleStream
                 .broadcast(RuleEvaluationFunction.RULE_STATE_DESCRIPTOR);
 
@@ -169,6 +180,8 @@ public class RiskControlApplication {
                 .name("redis-sink");
 
         // 7b. MySQL Sink（异步持久化，供历史分析和 Web 后台查询）
+        // 异步写入 MySQL：orderedWait 保持输入顺序，超时 60s，最多并发 100 条
+        // 通过异步 IO 隔离慢数据库，避免阻塞主数据流
         AsyncDataStream.orderedWait(
                 riskResults.map(result -> {
                     System.out.println("[SINK-MYSQL] Writing to MySQL: user=" + result.getUserId()
@@ -193,6 +206,14 @@ public class RiskControlApplication {
         env.execute("flink-risk-control-job");
     }
 
+    /**
+     * 从命令行参数中解析指定 key 对应的值（约定 --key value 成对出现）
+     *
+     * @param args         命令行参数数组
+     * @param key          参数名（含 -- 前缀，如 --kafka.bootstrap.servers）
+     * @param defaultValue 未找到时使用的默认值
+     * @return 解析到的参数值；未找到则返回默认值
+     */
     private static String getArg(String[] args, String key, String defaultValue) {
         for (int i = 0; i < args.length - 1; i++) {
             if (args[i].equals(key)) {

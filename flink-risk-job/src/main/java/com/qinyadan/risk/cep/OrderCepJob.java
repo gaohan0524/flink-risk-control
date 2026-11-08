@@ -20,11 +20,20 @@ import java.util.*;
 public class OrderCepJob {
     private static final Logger logger = LoggerFactory.getLogger(OrderCepJob.class);
 
+    /**
+     * 下单风控 CEP 处理入口
+     * 对已按 userId 分组的订单事件流执行两种模式匹配（频繁下单、快速连续下单），
+     * 输出 PatternMatchResult 中间结果供下游规则引擎评估
+     *
+     * @param input 按 userId 分组的订单事件流
+     * @return 两种模式命中结果的并集（union 后的流）
+     */
     public static DataStream<PatternMatchResult> process(KeyedStream<OrderEvent, String> input) {
 
         // 模式1: 频繁下单
         Pattern<OrderEvent, ?> frequentPattern = PatternFactory.createOrderFrequentPattern();
         DataStream<PatternMatchResult> frequentRisks = CEP.pattern(input, frequentPattern)
+                // 命中"频繁下单"模式后的回调：聚合事件 -> 汇总金额 -> 构建上下文与详情
                 .select(new PatternSelectFunction<OrderEvent, PatternMatchResult>() {
                     @Override
                     public PatternMatchResult select(Map<String, List<OrderEvent>> pattern) {
@@ -40,6 +49,7 @@ public class OrderCepJob {
 
                         OrderEvent firstEvent = allEvents.get(0);
 
+                        // 汇总命中订单的总金额（BigDecimal 精确累加，避免浮点误差）
                         BigDecimal totalAmount = BigDecimal.ZERO;
                         for (OrderEvent event : allEvents) {
                             if (event.getAmount() != null) {
@@ -69,6 +79,7 @@ public class OrderCepJob {
         // 模式2: 快速连续下单
         Pattern<OrderEvent, ?> rapidPattern = PatternFactory.createOrderRapidPattern();
         DataStream<PatternMatchResult> rapidRisks = CEP.pattern(input, rapidPattern)
+                // 命中"快速连续下单"模式后的回调：计算两笔订单时间间隔 -> 构建上下文与详情
                 .select(new PatternSelectFunction<OrderEvent, PatternMatchResult>() {
                     @Override
                     public PatternMatchResult select(Map<String, List<OrderEvent>> pattern) {
@@ -82,6 +93,7 @@ public class OrderCepJob {
                         OrderEvent firstEvent = firstList.get(0);
                         OrderEvent secondEvent = secondList.get(0);
 
+                        // 计算两笔订单的时间间隔（毫秒），作为快速下单判定依据
                         long interval = secondEvent.getTimestamp() - firstEvent.getTimestamp();
 
                         Map<String, Object> context = buildOrderContext(secondList, "ORDER_RAPID");
@@ -105,9 +117,18 @@ public class OrderCepJob {
                     }
                 });
 
+        // 将两种模式的命中结果流合并为一个流
         return frequentRisks.union(rapidRisks);
     }
 
+    /**
+     * 构建订单事件的规则评估上下文
+     * 将命中事件的最新字段（amount/productId/paymentMethod 等）写入 Map，供 Aviator 表达式引用
+     *
+     * @param events      命中的订单事件列表
+     * @param patternType 命中的模式类型
+     * @return 规则评估上下文 Map
+     */
     private static Map<String, Object> buildOrderContext(List<OrderEvent> events, String patternType) {
         Map<String, Object> context = new HashMap<>();
         if (events != null && !events.isEmpty()) {
