@@ -401,4 +401,16 @@ mvn exec:java -Dexec.mainClass=com.qinyadan.risk.RiskControlApplication
 | [03 · flink-risk-web](deep-dive/03-flink-risk-web.md) | Spring Boot 分层、实体别名技巧、三个 Controller、统计实现 | 想改接口或加管理功能 |
 | [04 · frontend](deep-dive/04-frontend.md) | Vite 工程、路由布局、请求层、四个页面、字段契约 | 想改界面或排查前后端联调 |
 
+### 逐行精读版（详解）
+
+上面的 `deep-dive/` 讲"设计意图"，`code-reading/` 讲"每一行在做什么"。三份文档各自先划分部分、给出阅读顺序，再逐讲展开：
+
+| 文档 | 划分 | 规模 | 适合谁 |
+|------|------|------|--------|
+| [01 · common 详解](code-reading/01-common.md) | 7 部分 / 24 讲：事件模型 → 反序列化 → 规则数据 → Aviator 引擎 → 结果解析 → RiskResult/Redis → 串读 | 1287 行 | 想逐方法吃透引擎与数据模型 |
+| [02 · job 详解](code-reading/02-job.md) | 7 层 / 22 讲：入口 → Source → Pattern → CEP 算子 → 广播评估 → Sink → 端到端复盘 | 1550 行 | 想真正读懂 Flink 侧每个算子 |
+| [03 · web 详解](code-reading/03-web.md) | 7 部分 / 22 讲：启动配置 → 基础设施 → 数据访问 → 实体 → 接口 → 统计 → 验证改造 | 1564 行 | 想逐端点读懂接口与 SQL |
+
+建议顺序：先读 `deep-dive/` 建立全局观，再按模块读 `code-reading/` 做逐行对照。
+
 配套参考：`README.md`（快速启动/截图）、`docs/DEPLOY.md`（集群 lib 依赖）、`docs/ARCHITECTURE.md`（初版设计，部分过时）、`CHANGELOG.md`（v2.2~v2.4 的踩坑记录）、`CODEBUDDY.md`（给 AI 助手的仓库速览）。
